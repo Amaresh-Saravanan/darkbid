@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Circuit artifacts
+circuits/bid_range/*.r1cs
+circuits/bid_range/*.zkey
+circuits/bid_range/*.ptau
+circuits/bid_range/*.sym
+circuits/bid_range/bid_range_js/
+circuits/bid_range/*.sol
