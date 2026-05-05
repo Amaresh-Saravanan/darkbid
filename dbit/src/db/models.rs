@@ -1,9 +1,11 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
+use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::domain::auction::AuctionStatus;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromRow, Serialize)]
 pub struct DbUser {
     pub id: Uuid,
     pub wallet_address: String,
@@ -12,7 +14,7 @@ pub struct DbUser {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromRow, Serialize)]
 pub struct DbAuction {
     pub id: Uuid,
     pub creator_id: Uuid,
@@ -25,7 +27,7 @@ pub struct DbAuction {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, FromRow, Serialize)]
 pub struct DbBid {
     pub id: Uuid,
     pub auction_id: Uuid,
@@ -37,4 +39,9 @@ pub struct DbBid {
     pub revealed_at: Option<DateTime<Utc>>,
     pub is_valid: bool,
     pub commit_at: DateTime<Utc>,
+    // ZK proof columns (migration 0002_zk.sql)
+    pub zk_proof: Option<String>,
+    pub zk_public_inputs: Option<String>,
+    pub zk_verified: bool,
 }
+

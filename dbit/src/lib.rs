@@ -9,3 +9,4 @@ pub mod middlewares;
 pub mod solana;
 pub mod state;
 pub mod utils;
+pub mod zk;

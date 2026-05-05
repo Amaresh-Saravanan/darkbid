@@ -1,6 +1,8 @@
 use axum::{http::StatusCode, response::IntoResponse, response::Response, Json};
 use serde::Serialize;
 
+use crate::zk::types::ZkVerifyError;
+
 pub type AppResult<T> = Result<T, AppError>;
 
 #[derive(Debug, thiserror::Error)]
@@ -19,6 +21,8 @@ pub enum AppError {
     Validation(String),
     #[error("not implemented: {0}")]
     NotImplemented(String),
+    #[error("zk proof error: {0}")]
+    ZkVerify(#[from] ZkVerifyError),
 }
 
 #[derive(Serialize)]
@@ -30,6 +34,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = match self {
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
+            AppError::ZkVerify(_)   => StatusCode::BAD_REQUEST,
             AppError::Jwt(_) => StatusCode::UNAUTHORIZED,
             AppError::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
