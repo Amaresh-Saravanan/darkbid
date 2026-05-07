@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 
@@ -54,9 +54,33 @@ export default function App() {
   const endpoint = clusterApiUrl('devnet')
   const wallets  = useMemo(() => [new PhantomWalletAdapter()], [])
 
+  const onError = useCallback((error) => {
+    console.error('[Wallet] Error:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    })
+    
+    if (error.message.includes('Phantom')) {
+      console.error('[Wallet] Phantom-specific error - extension may not be responding')
+      alert('Phantom wallet error.\n\nTroubleshooting:\n1. Make sure Phantom is enabled\n2. Refresh the page\n3. Check Phantom settings')
+    } else if (error.message.includes('User rejected')) {
+      console.log('[Wallet] User rejected connection')
+    } else {
+      console.error('[Wallet] Unexpected error:', error)
+    }
+  }, [])
+
+  const localStorageKey = 'WalletAdapterNetwork'
+
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider 
+        wallets={wallets} 
+        autoConnect={false}
+        onError={onError}
+        localStorageKey={localStorageKey}
+      >
         <WalletModalProvider>
           <AppContent />
         </WalletModalProvider>

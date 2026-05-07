@@ -7,6 +7,7 @@ pub struct AppConfig {
     pub database_url: String,
     pub jwt_secret: String,
     pub solana_rpc_url: String,
+    pub solana_program_id: String,
     pub server_addr: String,
     pub commit_duration_seconds: u64,
     pub reveal_duration_seconds: u64,
@@ -17,6 +18,7 @@ impl AppConfig {
         let database_url = get_env("DATABASE_URL")?;
         let jwt_secret = get_env("JWT_SECRET")?;
         let solana_rpc_url = get_env("SOLANA_RPC_URL")?;
+        let solana_program_id = get_env("SOLANA_PROGRAM_ID")?;
         let server_addr = env::var("SERVER_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
         let commit_duration_seconds = get_env_u64("COMMIT_DURATION_SECONDS", 300)?;
         let reveal_duration_seconds = get_env_u64("REVEAL_DURATION_SECONDS", 300)?;
@@ -25,6 +27,7 @@ impl AppConfig {
             database_url,
             jwt_secret,
             solana_rpc_url,
+            solana_program_id,
             server_addr,
             commit_duration_seconds,
             reveal_duration_seconds,

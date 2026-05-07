@@ -7,12 +7,12 @@ use crate::{
     db::queries,
     domain::auction::AuctionStatus,
     errors::{AppError, AppResult},
+    middlewares::auth::AuthUser,
     state::AppState,
 };
 
 #[derive(Deserialize)]
 pub struct CreateAuctionRequest {
-    pub creator_id: Uuid,
     pub title: String,
     pub reserve_price: i64,
     pub commit_duration_seconds: Option<i64>,
@@ -121,6 +121,7 @@ pub async fn get_result(
 }
 
 pub async fn create_auction(
+    user: AuthUser,
     State(state): State<AppState>,
     Json(req): Json<CreateAuctionRequest>,
 ) -> AppResult<Json<AuctionDetail>> {
@@ -158,7 +159,7 @@ pub async fn create_auction(
     let row = queries::create_auction(
         &state.db,
         auction_id,
-        req.creator_id,
+        user.user_id,
         &title,
         req.reserve_price,
         commit_end_at,

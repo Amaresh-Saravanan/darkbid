@@ -1,16 +1,49 @@
-# React + Vite
+# DarkBid
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+DarkBid is a sealed-bid auction app that combines a React frontend, a Rust backend API, an Anchor Solana program, and ZK circuits for bid proofs.
 
-Currently, two official plugins are available:
+## What is in this repo
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Frontend (Vite + React): `src/`
+- Backend API (Rust): `dbit/`
+- Anchor program (Solana on-chain): `anchor-prg/`
+- ZK circuits: `circuits/`
+- Docs and integration notes: repo root
 
-## React Compiler
+## Quick start (frontend)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Open `http://localhost:5173`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Anchor program overview
+
+The on-chain logic lives in `anchor-prg/programs/darkbid/` and exposes the core auction flow:
+
+- `initialize_auction`
+- `commit_bid`
+- `reveal_bid`
+- `finalize_auction`
+- `refund`
+
+Localnet config is in `anchor-prg/Anchor.toml`.
+
+## Frontend structure
+
+```
+src/
+	components/    UI building blocks
+	hooks/         Solana and app hooks
+	lib/           IDL, helpers, constants
+	pages/         Route-level screens
+	styles/        Global styles and tokens
+```
+
+## Useful docs
+
+- `DEVELOPER_GUIDE.md`
+- `DOCUMENTATION_INDEX.md`
+- `DEV_INTEGRATION_GUIDE.md`

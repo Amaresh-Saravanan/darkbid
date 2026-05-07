@@ -44,11 +44,62 @@ pub struct TxInfo {
     pub log_messages: Vec<String>,
     /// Account keys involved in the transaction (Base58 strings).
     pub account_keys: Vec<String>,
+    /// Program IDs invoked by top-level instructions.
+    pub program_ids: Vec<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
+
+fn extract_account_keys(value: &serde_json::Value) -> Vec<String> {
+    value
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| {
+                    if let Some(s) = v.as_str() {
+                        Some(s.to_string())
+                    } else if let Some(obj) = v.as_object() {
+                        obj.get("pubkey").and_then(|p| p.as_str()).map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn extract_program_ids(message: &serde_json::Value, account_keys: &[String]) -> Vec<String> {
+    let mut program_ids = Vec::new();
+    let instructions = message["instructions"].as_array().cloned().unwrap_or_default();
+
+    for ix in instructions {
+        let mut program_id: Option<String> = None;
+
+        if let Some(index) = ix.get("programIdIndex").and_then(|v| v.as_u64()) {
+            if let Some(id) = account_keys.get(index as usize) {
+                program_id = Some(id.to_string());
+            }
+        }
+
+        if program_id.is_none() {
+            program_id = ix
+                .get("programId")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+        }
+
+        if let Some(id) = program_id {
+            if !program_ids.iter().any(|p| p == &id) {
+                program_ids.push(id);
+            }
+        }
+    }
+
+    program_ids
+}
 
 /// Verify that a Solana transaction exists on-chain and was successful.
 ///
@@ -136,14 +187,9 @@ pub async fn verify_tx_signature(
         .unwrap_or_default();
 
     // Extract account keys from the transaction message
-    let account_keys: Vec<String> = result["transaction"]["message"]["accountKeys"]
-        .as_array()
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(String::from))
-                .collect()
-        })
-        .unwrap_or_default();
+    let message = &result["transaction"]["message"];
+    let account_keys = extract_account_keys(&message["accountKeys"]);
+    let program_ids = extract_program_ids(message, &account_keys);
 
     tracing::debug!(
         signature,
@@ -158,6 +204,7 @@ pub async fn verify_tx_signature(
         slot,
         log_messages,
         account_keys,
+        program_ids,
     })
 }
 
@@ -172,6 +219,29 @@ pub fn verify_signer(tx_info: &TxInfo, expected_wallet: &str) -> AppResult<()> {
         Err(AppError::Validation(format!(
             "wallet {} is not a signer on this transaction",
             expected_wallet
+        )))
+    }
+}
+
+/// Verify that the expected program ID appears in the transaction.
+///
+/// We check both the top-level instructions and program invoke logs to cover
+/// direct calls and CPI invocations.
+pub fn verify_program_in_tx(tx_info: &TxInfo, expected_program_id: &str) -> AppResult<()> {
+    let expected = expected_program_id.trim();
+    if expected.is_empty() {
+        return Err(AppError::Validation("SOLANA_PROGRAM_ID is empty".into()));
+    }
+
+    let invoked_in_instructions = tx_info.program_ids.iter().any(|id| id == expected);
+    let invoked_in_logs = tx_info.log_messages.iter().any(|log| log.contains(expected));
+
+    if invoked_in_instructions || invoked_in_logs {
+        Ok(())
+    } else {
+        Err(AppError::Validation(format!(
+            "transaction does not invoke expected program {}",
+            expected
         )))
     }
 }
