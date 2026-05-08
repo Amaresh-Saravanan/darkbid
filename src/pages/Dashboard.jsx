@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { PageTransition } from '@/components/shared/PageTransition'
 import { AuctionCard } from '@/components/auction/AuctionCard'
 import { Filter, Loader2 } from 'lucide-react'
-import { listAuctions } from '@/lib/api'
+import { getAuction, getAuctionResult, getToken, listAuctions } from '@/lib/api'
+import { useWalletInfo } from '@/hooks/useWalletInfo'
 
 const FILTERS = ['All', 'Live', 'Revealing', 'Ended']
 
@@ -22,11 +23,40 @@ const cardVariants = {
   }),
 }
 
+function formatSol(lamports) {
+  if (lamports === null || lamports === undefined) return 'N/A'
+  const sol = lamports / 1_000_000_000
+  return sol.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatTimeLeft(secondsLeft) {
+  if (!Number.isFinite(secondsLeft) || secondsLeft <= 0) return 'Ended'
+  const hours = Math.floor(secondsLeft / 3600)
+  const minutes = Math.floor((secondsLeft % 3600) / 60)
+  const seconds = secondsLeft % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function deriveStatus(rawStatus, nowMs, commitEndMs, revealEndMs) {
+  if (rawStatus === 'Ended' || (revealEndMs && nowMs >= revealEndMs)) return 'Ended'
+  if (rawStatus === 'Reveal' || (commitEndMs && nowMs >= commitEndMs)) return 'Revealing'
+  return 'Live'
+}
+
+function formatTokenPreview(token) {
+  if (!token) return 'Missing'
+  const head = token.slice(0, 8)
+  const tail = token.slice(-6)
+  return `${head}...${tail}`
+}
+
 export default function Dashboard() {
   const [filter, setFilter] = useState('All')
   const [auctions, setAuctions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const { shortAddress, balance, connected } = useWalletInfo()
+  const tokenPreview = formatTokenPreview(getToken())
 
   // Fetch auctions on mount
   useEffect(() => {
@@ -35,8 +65,37 @@ export default function Dashboard() {
         setLoading(true)
         setError(null)
         const data = await listAuctions()
-        console.log('[Dashboard] Fetched auctions:', data)
-        setAuctions(data || [])
+        const summaries = Array.isArray(data) ? data : []
+        const details = await Promise.all(
+          summaries.map(a => getAuction(a.id).catch(() => null))
+        )
+        const results = await Promise.all(
+          summaries.map(a => getAuctionResult(a.id).catch(() => null))
+        )
+
+        const nowMs = Date.now()
+        const normalized = summaries.map((summary, idx) => {
+          const detail = details[idx]
+          const result = results[idx]
+          const commitEndMs = summary.commit_end_at ? Date.parse(summary.commit_end_at) : null
+          const revealEndMs = summary.reveal_end_at ? Date.parse(summary.reveal_end_at) : null
+          const status = deriveStatus(summary.status, nowMs, commitEndMs, revealEndMs)
+          const targetMs = status === 'Live' ? commitEndMs : status === 'Revealing' ? revealEndMs : null
+          const secondsLeft = targetMs ? Math.max(0, Math.floor((targetMs - nowMs) / 1000)) : 0
+
+          return {
+            id: summary.id,
+            name: detail?.title || summary.title || 'Untitled Auction',
+            symbol: null,
+            reserve: detail?.reserve_price ?? null,
+            time: status === 'Ended' ? 'Ended' : formatTimeLeft(secondsLeft),
+            bids: result?.total_bids ?? 0,
+            status,
+          }
+        })
+
+        console.log('[Dashboard] Fetched auctions:', normalized)
+        setAuctions(normalized)
       } catch (err) {
         console.error('[Dashboard] Error fetching auctions:', err)
         setError(err.message)
@@ -51,10 +110,10 @@ export default function Dashboard() {
   const filtered = filter === 'All' ? auctions : auctions.filter(a => a.status === filter)
 
   const counts = {
-    All:      auctions.length,
-    Live:      auctions.filter(a => a.status === 'Live' || a.status === 'BIDDING').length,
-    Revealing: auctions.filter(a => a.status === 'Revealing' || a.status === 'REVEAL').length,
-    Ended:     auctions.filter(a => a.status === 'Ended' || a.status === 'CLOSED').length,
+    All:       auctions.length,
+    Live:      auctions.filter(a => a.status === 'Live').length,
+    Revealing: auctions.filter(a => a.status === 'Revealing').length,
+    Ended:     auctions.filter(a => a.status === 'Ended').length,
   }
 
   return (
@@ -66,6 +125,29 @@ export default function Dashboard() {
         <p className="text-[var(--text-secondary)] text-lg max-w-xl">
           Browse all sealed-bid token launches. Bid, reveal, and claim — all cryptographically fair.
         </p>
+      </div>
+
+      {/* Session Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          <div className="text-xs text-[var(--text-muted)] uppercase tracking-widest mb-2">Wallet</div>
+          <div className="text-white font-mono">
+            {connected && shortAddress ? shortAddress : 'Not connected'}
+          </div>
+          <div className="text-xs text-[var(--text-muted)] mt-2">
+            Balance: {connected ? `${balance.toFixed(3)} SOL` : 'N/A'}
+          </div>
+        </div>
+        <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          <div className="text-xs text-[var(--text-muted)] uppercase tracking-widest mb-2">Auth Token</div>
+          <div className="text-white font-mono">{tokenPreview}</div>
+          <div className="text-xs text-[var(--text-muted)] mt-2">Stored in localStorage</div>
+        </div>
+        <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+          <div className="text-xs text-[var(--text-muted)] uppercase tracking-widest mb-2">Network</div>
+          <div className="text-white font-mono">Devnet</div>
+          <div className="text-xs text-[var(--text-muted)] mt-2">Wallet adapter connected</div>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -135,7 +217,11 @@ export default function Dashboard() {
                 initial="hidden"
                 animate="visible"
               >
-                <AuctionCard {...a} isLive={a.status === 'Live' || a.status === 'BIDDING'} />
+                <AuctionCard
+                  {...a}
+                  reserve={a.reserve !== null ? formatSol(a.reserve) : 'N/A'}
+                  isLive={a.status === 'Live'}
+                />
               </motion.div>
             )) : (
               <motion.div

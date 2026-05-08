@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { WalletButton } from '@/components/shared/WalletButton'
 import { useWallet } from '@solana/wallet-adapter-react'
-import { useAuth } from '@/hooks/useAuth.jsx'
+import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
 import { commitBid } from '@/lib/api'
+import { buildCommitHash } from '@/lib/commit'
 import { Lock, RefreshCw, Copy, AlertTriangle } from 'lucide-react'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 
 // Auto-generate 64-char key
 function generateKey() {
@@ -13,17 +14,13 @@ function generateKey() {
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-async function sha256hex(msg) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg))
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
 export function BidForm({ reserve = 0, auctionId, onBid }) {
   const { connected } = useWallet()
-  const { authenticated } = useAuth()
+  const { authenticated, userId } = useWalletAuth()
   const [amount, setAmount] = useState('1.25')
   const [secret, setSecret] = useState('')
   const [hash,   setHash]   = useState('')
+  const [commitTxSig, setCommitTxSig] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [submitError, setSubmitError] = useState(null)
@@ -34,16 +31,25 @@ export function BidForm({ reserve = 0, auctionId, onBid }) {
   
   // Realtime Hash
   useEffect(() => {
-    if (!amount || !secret) { 
+    if (!amount || !secret || !userId) {
       setHash('')
-      return 
+      return
     }
+
     const t = setTimeout(async () => {
-      const h = await sha256hex(`${amount}:${secret}`)
-      setHash(h)
+      const amt = Number.parseFloat(amount)
+      if (!Number.isFinite(amt)) {
+        setHash('')
+        return
+      }
+
+      const lamports = Math.round(amt * LAMPORTS_PER_SOL)
+      const h = await buildCommitHash(lamports, secret, userId)
+      setHash(h || '')
     }, 150)
+
     return () => clearTimeout(t)
-  }, [amount, secret])
+  }, [amount, secret, userId])
 
   const copySecret = () => {
     navigator.clipboard.writeText(secret)
@@ -54,6 +60,10 @@ export function BidForm({ reserve = 0, auctionId, onBid }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!connected || !authenticated || !amount || Number(amount) < reserve || isSubmitting) return
+    if (!hash || !commitTxSig) {
+      setSubmitError('Commit hash and transaction signature are required')
+      return
+    }
 
     try {
       setIsSubmitting(true)
@@ -70,19 +80,22 @@ export function BidForm({ reserve = 0, auctionId, onBid }) {
       localStorage.setItem(`bid_amount_${auctionId}`, amount)
 
       // Call backend API to commit bid
-      const response = await commitBid(
-        auctionId,
-        `0x${hash}`,
-        'temp-tx-hash'  // TODO: Get real tx hash from Solana transaction
-      )
+      const response = await commitBid(auctionId, hash, commitTxSig)
 
       console.log('✅ Bid committed:', response)
       setSubmitSuccess(true)
       setAmount('')
       setSecret(generateKey())
+      setCommitTxSig('')
 
       // Call parent callback
-      onBid?.({ amount, secret, hash })
+      const bidId = response?.bid_id || null
+      if (bidId) {
+        localStorage.setItem(`bid_id_${auctionId}`, bidId)
+      }
+      localStorage.setItem(`bid_hash_${auctionId}`, hash)
+
+      onBid?.({ amount, secret, hash, bidId })
 
       // Clear success message after 3 seconds
       setTimeout(() => setSubmitSuccess(false), 3000)
@@ -181,6 +194,17 @@ export function BidForm({ reserve = 0, auctionId, onBid }) {
           </div>
         </div>
 
+        {/* Commit Transaction Signature */}
+        <div>
+          <label className="block font-mono text-xs text-[var(--text-muted)] uppercase tracking-[0.2em] mb-3">Commit Tx Signature</label>
+          <input
+            className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-4 text-white font-mono text-sm focus:outline-none focus:border-[var(--violet-400)] focus:ring-1 focus:ring-[var(--violet-400)]"
+            placeholder="Paste Solana transaction signature"
+            value={commitTxSig}
+            onChange={e => setCommitTxSig(e.target.value)}
+          />
+        </div>
+
         {/* Error Display */}
         {submitError && (
           <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono">
@@ -198,7 +222,7 @@ export function BidForm({ reserve = 0, auctionId, onBid }) {
         {/* CTA */}
         <button 
           onClick={handleSubmit}
-          disabled={isSubmitting || Number(amount) < reserve || !authenticated}
+          disabled={isSubmitting || Number(amount) < reserve || !authenticated || !hash || !commitTxSig}
           className="w-full btn-primary-glow text-white font-display font-medium text-lg py-5 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Lock className="w-[24px] h-[24px] group-hover:scale-110 transition-transform" />

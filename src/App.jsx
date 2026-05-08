@@ -2,17 +2,21 @@ import { useMemo, useCallback } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
 
+// Polyfill Buffer for Solana libraries in Vite
+import { Buffer } from 'buffer'
+window.Buffer = window.Buffer || Buffer
+
 // Solana wallet imports
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom'
 import { clusterApiUrl } from '@solana/web3.js'
 
 import '@solana/wallet-adapter-react-ui/styles.css'
 import './index.css'
 
 // Auth
-import { AuthProvider } from './hooks/useAuth.jsx'
+import { WalletAuthProvider } from './hooks/useWalletAuth.jsx'
+import { ProtectedRoute } from './components/shared/ProtectedRoute.jsx'
 
 // Layout
 import { Navbar } from './components/layout/Navbar'
@@ -21,8 +25,6 @@ import { ROUTES } from './lib/constants'
 
 // Pages
 import Landing   from './pages/Landing'
-import Login     from './pages/Login'
-import Register  from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Launch    from './pages/Launch'
 import Auction   from './pages/Auction'
@@ -33,11 +35,9 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path={ROUTES.HOME}      element={<Landing />} />
-        <Route path="/login"           element={<Login />} />
-        <Route path="/register"        element={<Register />} />
-        <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
-        <Route path={ROUTES.LAUNCH}    element={<Launch />} />
-        <Route path={ROUTES.AUCTION}   element={<Auction />} />
+        <Route path={ROUTES.DASHBOARD} element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path={ROUTES.LAUNCH}    element={<ProtectedRoute><Launch /></ProtectedRoute>} />
+        <Route path={ROUTES.AUCTION}   element={<ProtectedRoute><Auction /></ProtectedRoute>} />
       </Routes>
     </AnimatePresence>
   )
@@ -59,7 +59,8 @@ function AppContent() {
 
 export default function App() {
   const endpoint = clusterApiUrl('devnet')
-  const wallets  = useMemo(() => [new PhantomWalletAdapter()], [])
+  // Phantom auto-registers via Wallet Standard — no explicit adapters needed
+  const wallets  = useMemo(() => [], [])
 
   const onError = useCallback((error) => {
     console.error('[Wallet] Error:', {
@@ -81,19 +82,19 @@ export default function App() {
   const localStorageKey = 'WalletAdapterNetwork'
 
   return (
-    <AuthProvider>
-      <ConnectionProvider endpoint={endpoint}>
-        <WalletProvider 
-          wallets={wallets} 
-          autoConnect={false}
-          onError={onError}
-          localStorageKey={localStorageKey}
-        >
-          <WalletModalProvider>
+    <ConnectionProvider endpoint={endpoint}>
+      <WalletProvider 
+        wallets={wallets} 
+        autoConnect={false}
+        onError={onError}
+        localStorageKey={localStorageKey}
+      >
+        <WalletModalProvider>
+          <WalletAuthProvider>
             <AppContent />
-          </WalletModalProvider>
-        </WalletProvider>
-      </ConnectionProvider>
-    </AuthProvider>
+          </WalletAuthProvider>
+        </WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
   )
 }

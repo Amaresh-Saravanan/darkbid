@@ -1,84 +1,68 @@
 import { useWallet } from '@solana/wallet-adapter-react'
-import { useWalletModal } from '@solana/wallet-adapter-react-ui'
 import { useState, useEffect, useCallback } from 'react'
+import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
 
-// Shortens wallet address: "AbCd...XyZ1"
 function shortenAddress(address) {
   return `${address.slice(0, 4)}...${address.slice(-4)}`
 }
 
 export function WalletButton() {
-  const { connected, publicKey, disconnect, connecting, error: walletError, select, wallet } = useWallet()
-  const { setVisible } = useWalletModal()
+  const { connected, publicKey, disconnect, connecting, select, wallets, connect, wallet } = useWallet()
+  const { authenticated, login, logout, loading: authLoading } = useWalletAuth()
   const [showDropdown, setShowDropdown] = useState(false)
-  const [hasPhantom, setHasPhantom] = useState(false)
-  const [connectionError, setConnectionError] = useState(null)
+  const [connectError, setConnectError] = useState(null)
 
-  // Check if Phantom is installed
+  // When a wallet is selected but not connected, auto-connect
   useEffect(() => {
-    const checkPhantom = () => {
-      const isPhantomInstalled = window.phantom?.solana?.isPhantom
-      setHasPhantom(!!isPhantomInstalled)
-      console.log('[Wallet] Phantom check:', { isPhantomInstalled, hasPhantom: !!isPhantomInstalled })
-      if (!isPhantomInstalled) {
-        console.warn('[Wallet] Phantom wallet not detected. Please install: https://phantom.app')
-      }
+    if (wallet && !connected && !connecting) {
+      console.log('[WalletButton] Wallet selected, calling connect()...')
+      connect().catch(err => {
+        console.error('[WalletButton] Connect error:', err)
+        setConnectError(err.message)
+      })
     }
-    
-    // Check immediately
-    checkPhantom()
-    
-    // Check again after a short delay (in case extension loads later)
-    const timer = setTimeout(checkPhantom, 1000)
-    return () => clearTimeout(timer)
-  }, [])
+  }, [wallet, connected, connecting, connect])
 
-  // Log wallet connection state changes
+  // Auto-trigger sign message when wallet connects but not yet authenticated
   useEffect(() => {
-    console.log('[Wallet] State changed:', { connected, connecting, wallet: wallet?.adapter.name, error: walletError })
-    if (walletError) {
-      console.error('[Wallet] Connection error:', walletError)
-      setConnectionError(walletError.message)
+    if (connected && publicKey && !authenticated && !authLoading) {
+      const timer = setTimeout(() => {
+        console.log('[WalletButton] Wallet connected, triggering auth sign...')
+        login().catch(err => {
+          console.error('[WalletButton] Auto-auth failed:', err)
+        })
+      }, 500)
+      return () => clearTimeout(timer)
     }
-  }, [connected, connecting, wallet, walletError])
+  }, [connected, publicKey, authenticated, authLoading])
 
-  const handleConnect = useCallback(async () => {
-    try {
-      setConnectionError(null)
-      
-      if (!hasPhantom) {
-        console.warn('[Wallet] Phantom not detected')
-        alert('Phantom wallet not detected.\n\nPlease install the Phantom extension:\nhttps://phantom.app')
-        window.open('https://phantom.app', '_blank')
-        return
-      }
+  const handleConnect = useCallback(() => {
+    setConnectError(null)
 
-      console.log('[Wallet] Selecting Phantom wallet and opening modal...')
-      // First select the wallet
-      await select('Phantom')
-      console.log('[Wallet] Phantom selected, modal should open')
-    } catch (err) {
-      console.error('[Wallet] Connect error:', err)
-      setConnectionError(err.message)
+    // Find Phantom in the registered wallets (Standard Wallet)
+    const phantomWallet = wallets.find(w =>
+      w.adapter.name.toLowerCase().includes('phantom')
+    )
+
+    if (phantomWallet) {
+      console.log('[WalletButton] Found Phantom, selecting:', phantomWallet.adapter.name)
+      select(phantomWallet.adapter.name)
+      // The useEffect above will call connect() once the wallet state updates
+    } else {
+      // Phantom not installed — direct user to install
+      console.log('[WalletButton] Phantom not found. Available wallets:', wallets.map(w => w.adapter.name))
+      window.open('https://phantom.app/', '_blank')
     }
-  }, [hasPhantom, select])
+  }, [wallets, select])
 
-  // Log wallet changes when connecting
-  useEffect(() => {
-    if (connecting) {
-      console.log('[Wallet] Connecting to Phantom...')
-    }
-  }, [connecting])
+  const handleDisconnect = useCallback(() => {
+    disconnect()
+    logout()
+    setShowDropdown(false)
+    console.log('[WalletButton] Disconnected wallet + cleared auth')
+  }, [disconnect, logout])
 
-  // Success handler
-  useEffect(() => {
-    if (connected && publicKey) {
-      console.log('[Wallet] ✅ Successfully connected:', publicKey.toString())
-      setConnectionError(null)
-    }
-  }, [connected, publicKey])
-
-  // LOADING STATE — wallet is connecting
+  // LOADING STATE
   if (connecting) {
     return (
       <button className="wallet-btn wallet-btn--loading" disabled>
@@ -87,42 +71,37 @@ export function WalletButton() {
     )
   }
 
-  // NOT CONNECTED — show connect button
+  // NOT CONNECTED
   if (!connected) {
     return (
       <div>
         <button
           className="wallet-btn wallet-btn--connect"
           onClick={handleConnect}
-          title={!hasPhantom ? 'Phantom not installed' : 'Connect wallet'}
         >
           Connect Wallet
         </button>
-        {connectionError && (
-          <div className="wallet-error" style={{
-            fontSize: '12px',
-            color: '#ff6b6b',
-            marginTop: '8px',
-            padding: '8px',
-            background: 'rgba(255, 107, 107, 0.1)',
-            borderRadius: '4px'
-          }}>
-            Error: {connectionError}
-          </div>
+        {connectError && (
+          <p style={{ color: '#f87171', fontSize: '11px', marginTop: '4px', textAlign: 'center' }}>
+            {connectError}
+          </p>
         )}
       </div>
     )
   }
 
-  // CONNECTED — show address with disconnect option
+  // CONNECTED
   return (
-    <div className="wallet-connected">
+    <div className="wallet-connected" style={{ position: 'relative' }}>
       <button
         className="wallet-btn wallet-btn--connected"
         onClick={() => setShowDropdown(!showDropdown)}
       >
         <span className="wallet-dot" />
         {shortenAddress(publicKey.toString())}
+        {!authenticated && (
+          <span style={{ marginLeft: '6px', fontSize: '10px', opacity: 0.7 }}>⏳</span>
+        )}
       </button>
 
       {showDropdown && (
@@ -130,9 +109,30 @@ export function WalletButton() {
           <p className="wallet-full-address">
             {publicKey.toString()}
           </p>
+          {!authenticated && (
+            <button
+              className="wallet-sign"
+              onClick={() => { login(); setShowDropdown(false) }}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: 'rgba(124, 58, 237, 0.2)',
+                border: '1px solid rgba(124, 58, 237, 0.4)',
+                borderRadius: '8px',
+                color: '#A78BFA',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginBottom: '8px',
+                transition: 'all 0.2s'
+              }}
+            >
+              ✍️ Sign Message to Authenticate
+            </button>
+          )}
           <button
             className="wallet-disconnect"
-            onClick={() => { disconnect(); setShowDropdown(false) }}
+            onClick={handleDisconnect}
           >
             Disconnect
           </button>

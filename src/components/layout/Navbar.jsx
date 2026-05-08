@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LockKeyhole, Menu, X, LogOut } from 'lucide-react'
 import { WalletButton } from '@/components/shared/WalletButton'
-import { useAuth } from '@/hooks/useAuth.jsx'
+import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
 import { ROUTES } from '@/lib/constants'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -16,7 +16,7 @@ export function Navbar() {
   const [scrolled, setScrolled]   = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
-  const { authenticated, logout } = useAuth()
+  const { authenticated, logout } = useWalletAuth()
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 60)
@@ -69,33 +69,16 @@ export function Navbar() {
 
           {/* Right: wallet + auth + mobile burger */}
           <div className="flex items-center gap-3">
-            {authenticated ? (
-              <>
-                <WalletButton />
-                <button
-                  onClick={logout}
-                  className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-text-muted hover:text-white hover:bg-bg-surface transition-all"
-                  title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Logout</span>
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="hidden sm:block px-4 py-2 rounded-lg text-sm font-medium text-text-muted hover:text-white hover:bg-bg-surface transition-all"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="hidden sm:block px-4 py-2 rounded-lg text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 transition-all"
-                >
-                  Join
-                </Link>
-              </>
+            <WalletButton />
+            {authenticated && (
+              <button
+                onClick={logout}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-text-muted hover:text-white hover:bg-bg-surface transition-all"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Logout</span>
+              </button>
             )}
             <button
               onClick={() => setMobileOpen(v => !v)}
@@ -127,29 +110,17 @@ export function Navbar() {
               </Link>
             ))}
             <div className="h-px bg-border-subtle my-2" />
-            {authenticated ? (
+            <div className="flex flex-col gap-2 pt-2">
+              <WalletButton />
+            </div>
+            {authenticated && (
               <button
                 onClick={logout}
-                className="py-3 px-4 rounded-xl text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex items-center gap-2"
+                className="py-3 px-4 rounded-xl text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex items-center gap-2 mt-2"
               >
                 <LogOut className="w-4 h-4" />
                 Logout
               </button>
-            ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="py-3 px-4 rounded-xl text-sm font-medium text-text-secondary hover:text-white hover:bg-bg-surface transition-all"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="py-3 px-4 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 transition-all"
-                >
-                  Create Account
-                </Link>
-              </>
             )}
           </motion.div>
         )}

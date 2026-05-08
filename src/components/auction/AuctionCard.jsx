@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
@@ -31,6 +30,9 @@ export function AuctionCard({ id, name, symbol, reserve, time, bids, status = 'L
   const resolvedStatus = isLive ? 'Live' : status
   const colors = STATUS_COLORS[resolvedStatus] || STATUS_COLORS.Ended
   const maxBids = 30
+  const displaySymbol = symbol || 'N/A'
+  const displayReserve = reserve || 'N/A'
+  const displayTime = time || 'N/A'
 
   return (
     <motion.div
@@ -44,7 +46,7 @@ export function AuctionCard({ id, name, symbol, reserve, time, bids, status = 'L
       <div className="flex items-start justify-between gap-2">
         <div>
           <span className="font-display text-base font-bold text-white leading-tight block">{name}</span>
-          <span className="font-mono text-xs text-[var(--text-muted)] mt-0.5 block">{symbol}</span>
+          <span className="font-mono text-xs text-[var(--text-muted)] mt-0.5 block">{displaySymbol}</span>
         </div>
         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold tracking-wider shrink-0 animate-pulse-badge ${colors.badge}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
@@ -56,12 +58,12 @@ export function AuctionCard({ id, name, symbol, reserve, time, bids, status = 'L
       <div className="grid grid-cols-2 gap-4">
         <div>
           <span className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-semibold block mb-1">Reserve</span>
-          <span className="font-mono text-sm text-white">◎ {reserve}</span>
+          <span className="font-mono text-sm text-white">◎ {displayReserve}</span>
         </div>
         <div className="text-right">
           <span className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-semibold block mb-1">Time Left</span>
           <span className="font-mono text-sm font-bold" style={{ color: colors.timer }}>
-            {time === 'Ended' ? 'Closed' : time}
+            {displayTime === 'Ended' ? 'Closed' : displayTime}
           </span>
         </div>
       </div>

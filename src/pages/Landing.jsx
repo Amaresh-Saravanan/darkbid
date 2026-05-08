@@ -3,6 +3,7 @@ import { motion, useInView } from 'framer-motion'
 import { LockKeyhole, ShieldCheck, Trophy, Clock, Wallet, Key } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageTransition } from '@/components/shared/PageTransition'
+import { WalletButton } from '@/components/shared/WalletButton'
 import { AuctionCard } from '@/components/auction/AuctionCard'
 import { BlackHoleCanvas } from '@/components/shared/BlackHoleCanvas'
 import { ROUTES } from '@/lib/constants'
@@ -168,8 +169,11 @@ export default function Landing() {
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.65, delay: 0.5 }}
-            className="flex flex-col sm:flex-row gap-4"
+            className="flex flex-col sm:flex-row gap-4 items-center"
           >
+            <div className="relative z-10">
+              <WalletButton />
+            </div>
             <Link
               to={ROUTES.DASHBOARD}
               className="relative px-8 py-4 bg-[var(--violet-500)] text-white font-bold rounded-xl text-base overflow-hidden group

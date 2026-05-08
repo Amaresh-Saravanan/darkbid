@@ -1,9 +1,9 @@
 /**
  * API wrapper that automatically includes JWT token in requests
- * Usage: api('/auction/list') or api('/auth/login', { method: 'POST', body: {...} })
+ * Usage: api('/auctions') or api('/login', { method: 'POST', body: {...} })
  */
 
-const API_BASE = 'http://localhost:8080'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 /**
  * Get stored JWT token from localStorage
@@ -89,17 +89,24 @@ export async function api(endpoint, options = {}) {
  */
 
 // AUTH
-export async function register(username, password) {
-  return api('/auth/register', {
+export async function register(walletAddress, email, password) {
+  return api('/register', {
     method: 'POST',
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      email: email || null,
+      password: password || null
+    })
   })
 }
 
-export async function login(username, password) {
-  const response = await api('/auth/login', {
+export async function login(walletAddress, password) {
+  const response = await api('/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      password: password || null
+    })
   })
   if (response.token) {
     setToken(response.token)
@@ -107,14 +114,19 @@ export async function login(username, password) {
   return response
 }
 
-export async function getAuthNonce() {
-  return api('/auth/nonce')
+export async function getAuthNonce(walletAddress) {
+  const qs = new URLSearchParams({ wallet: walletAddress })
+  return api(`/auth/nonce?${qs.toString()}`)
 }
 
 export async function walletAuth(walletAddress, signature, nonce) {
-  const response = await api('/auth/wallet', {
+  const response = await api('/login', {
     method: 'POST',
-    body: JSON.stringify({ wallet_address: walletAddress, signature, nonce })
+    body: JSON.stringify({
+      wallet_address: walletAddress,
+      signature,
+      nonce
+    })
   })
   if (response.token) {
     setToken(response.token)
@@ -124,7 +136,7 @@ export async function walletAuth(walletAddress, signature, nonce) {
 
 // AUCTIONS
 export async function listAuctions() {
-  return api('/auction/list')
+  return api('/auctions')
 }
 
 export async function getAuction(id) {
@@ -143,25 +155,27 @@ export async function getAuctionResult(id) {
 }
 
 // BIDS
-export async function commitBid(auctionId, commitHash, txHash) {
+export async function commitBid(auctionId, commitHash, commitTxSig) {
   return api('/bid/commit', {
     method: 'POST',
     body: JSON.stringify({
       auction_id: auctionId,
       commit_hash: commitHash,
-      tx_hash: txHash
+      commit_tx_sig: commitTxSig
     })
   })
 }
 
-export async function revealBid(auctionId, amountCents, secret, txHash) {
+export async function revealBid({ bidId, auctionId, amount, nonce, revealTxSig, zkProof }) {
   return api('/bid/reveal', {
     method: 'POST',
     body: JSON.stringify({
+      bid_id: bidId,
       auction_id: auctionId,
-      amount_cents: amountCents,
-      secret,
-      tx_hash: txHash
+      reveal_amount: amount,
+      nonce,
+      reveal_tx_sig: revealTxSig,
+      zk_proof: zkProof || null
     })
   })
 }

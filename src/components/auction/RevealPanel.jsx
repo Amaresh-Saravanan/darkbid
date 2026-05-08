@@ -1,45 +1,105 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, Lock, Zap, ArrowRight, PackageOpen } from 'lucide-react'
+import { revealBid } from '@/lib/api'
+import { buildCommitHash } from '@/lib/commit'
+import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 
-async function sha256hex(msg) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(msg))
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-export function RevealPanel({ onReveal, sealedHash = '0x4f3a...8c2d' }) {
-  const [amount, setAmount] = useState('125.50')
-  const [secret, setSecret] = useState('1234567812345678')
-  const [matchStatus, setMatchStatus] = useState('match') // null | 'match' | 'no-match'
+export function RevealPanel({
+  onReveal,
+  auctionId,
+  bidId,
+  sealedHash = '',
+  initialAmount = '',
+  initialSecret = ''
+}) {
+  const { userId } = useWalletAuth()
+  const [amount, setAmount] = useState(initialAmount)
+  const [secret, setSecret] = useState(initialSecret)
+  const [revealTxSig, setRevealTxSig] = useState('')
+  const [matchStatus, setMatchStatus] = useState(null) // null | 'match' | 'no-match'
   const [zkPhase, setZkPhase] = useState('idle')
   const [zkProgress, setZkProgress] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  const sealedHashDisplay = sealedHash
+    ? (sealedHash.startsWith('0x') ? sealedHash : `0x${sealedHash}`)
+    : 'No sealed hash found'
 
   useEffect(() => {
-    // Simulated hash check for visual demonstration
-    if (amount && secret.length > 8) {
-      setMatchStatus('match')
-    } else {
-      setMatchStatus('no-match')
-    }
-  }, [amount, secret])
+    let cancelled = false
 
-  const handleReveal = () => {
-    if (matchStatus !== 'match') return
-    setZkPhase('generating')
-    setZkProgress(0)
-
-    const start = Date.now()
-    const dur = 4000
-    const tick = () => {
-      const p = Math.min(((Date.now() - start) / dur) * 100, 100)
-      setZkProgress(p)
-      if (p < 100) requestAnimationFrame(tick)
-      else {
-        setZkPhase('done')
-        setTimeout(() => onReveal?.(), 500)
+    const checkMatch = async () => {
+      if (!amount || !secret || !sealedHash || !userId) {
+        setMatchStatus(null)
+        return
       }
+
+      const amt = Number.parseFloat(amount)
+      if (!Number.isFinite(amt)) {
+        setMatchStatus('no-match')
+        return
+      }
+
+      const lamports = Math.round(amt * LAMPORTS_PER_SOL)
+      const computed = await buildCommitHash(lamports, secret, userId)
+      if (cancelled) return
+
+      const expected = sealedHash.startsWith('0x') ? sealedHash.slice(2) : sealedHash
+      setMatchStatus(computed && expected ? (computed === expected ? 'match' : 'no-match') : 'no-match')
     }
-    requestAnimationFrame(tick)
+
+    checkMatch()
+    return () => { cancelled = true }
+  }, [amount, secret, sealedHash, userId])
+
+  const handleReveal = async () => {
+    setSubmitError(null)
+    setSubmitSuccess(false)
+
+    if (!auctionId || !bidId) {
+      setSubmitError('Missing auction or bid reference')
+      return
+    }
+    if (!revealTxSig) {
+      setSubmitError('Reveal transaction signature is required')
+      return
+    }
+    if (matchStatus !== 'match') {
+      setSubmitError('Commit hash does not match the sealed bid')
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      setZkPhase('generating')
+      setZkProgress(25)
+
+      const amt = Number.parseFloat(amount)
+      const lamports = Math.round(amt * LAMPORTS_PER_SOL)
+
+      await revealBid({
+        bidId,
+        auctionId,
+        amount: lamports,
+        nonce: secret,
+        revealTxSig
+      })
+
+      setZkProgress(100)
+      setZkPhase('done')
+      setSubmitSuccess(true)
+      setTimeout(() => onReveal?.(), 500)
+    } catch (err) {
+      setSubmitError(err.message)
+      setZkPhase('idle')
+      setZkProgress(0)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -57,7 +117,7 @@ export function RevealPanel({ onReveal, sealedHash = '0x4f3a...8c2d' }) {
             <div className="flex flex-col gap-2">
               <span className="font-mono text-xs text-[var(--text-muted)] uppercase tracking-wider">Hash</span>
               <div className="bg-black/40 border border-white/5 rounded-lg p-3 font-mono text-[var(--violet-400)] truncate shadow-inner">
-                {sealedHash}
+                {sealedHashDisplay}
               </div>
             </div>
             <div className="flex flex-col gap-2">
@@ -65,7 +125,7 @@ export function RevealPanel({ onReveal, sealedHash = '0x4f3a...8c2d' }) {
               <div className="inline-flex items-center gap-3 px-4 py-2 rounded-lg bg-[var(--warning)]/5 border border-[var(--warning)]/20 w-fit">
                 <span className="w-2.5 h-2.5 rounded-full bg-[var(--warning)] animate-pulse" style={{ boxShadow: '0 0 10px rgba(255,165,0,0.8)' }} />
                 <span className="font-mono text-xs text-[var(--warning)] uppercase tracking-wider">
-                  {zkPhase === 'generating' ? 'Generating Proof...' : zkPhase === 'done' ? 'Ready to Submit' : 'Awaiting Reveal'}
+                  {zkPhase === 'generating' ? 'Submitting Reveal...' : zkPhase === 'done' ? 'Reveal Submitted' : 'Awaiting Reveal'}
                 </span>
               </div>
             </div>
@@ -146,6 +206,18 @@ export function RevealPanel({ onReveal, sealedHash = '0x4f3a...8c2d' }) {
               </div>
             </div>
 
+            {/* Reveal Tx Signature */}
+            <div className="flex flex-col gap-3">
+              <label className="text-xs font-mono text-[var(--text-muted)] uppercase tracking-widest pl-1">Reveal Tx Signature</label>
+              <input
+                className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-4 font-mono text-white focus:border-[var(--violet-500)] focus:ring-1 focus:ring-[var(--violet-500)] transition-all shadow-inner outline-none disabled:opacity-50"
+                placeholder="Paste Solana transaction signature"
+                value={revealTxSig}
+                onChange={e => setRevealTxSig(e.target.value)}
+                disabled={zkPhase !== 'idle'}
+              />
+            </div>
+
             {/* Verification Message */}
             <AnimatePresence mode="wait">
               {matchStatus === 'match' && (
@@ -158,16 +230,34 @@ export function RevealPanel({ onReveal, sealedHash = '0x4f3a...8c2d' }) {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {matchStatus === 'no-match' && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-sm text-red-400">
+                Commit hash does not match the sealed bid. Check the amount and secret.
+              </div>
+            )}
+
+            {submitError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-sm text-red-400">
+                {submitError}
+              </div>
+            )}
+
+            {submitSuccess && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-sm text-green-400">
+                Reveal submitted successfully.
+              </div>
+            )}
           </div>
 
           {/* CTA Action */}
           <div className="mt-10 pt-8 border-t border-white/10 flex justify-end relative z-10">
             <button 
               onClick={handleReveal}
-              disabled={matchStatus !== 'match' || zkPhase !== 'idle'}
+              disabled={matchStatus !== 'match' || zkPhase !== 'idle' || isSubmitting}
               className="btn-primary-glow text-white px-10 py-4 rounded-xl font-mono text-base uppercase tracking-widest flex items-center gap-3 w-full md:w-auto justify-center transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {zkPhase === 'generating' ? 'Generating...' : 'Reveal My Bid'}
+              {isSubmitting ? 'Submitting...' : 'Reveal My Bid'}
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>

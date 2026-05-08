@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PageTransition } from '@/components/shared/PageTransition'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AuctionCard } from '@/components/auction/AuctionCard'
 import { Info, Zap } from 'lucide-react'
-import { useAuth } from '@/hooks/useAuth.jsx'
+import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
 import { createAuction } from '@/lib/api'
+import { LAMPORTS_PER_SOL } from '@solana/web3.js'
 
 function humanDuration(seconds) {
   const s = parseInt(seconds) || 0
@@ -34,7 +35,7 @@ const FieldLabel = ({ children }) => (
 )
 
 export default function Launch() {
-  const { authenticated } = useAuth()
+  const { authenticated } = useWalletAuth()
   const navigate = useNavigate()
 
   const [form, setForm] = useState({
@@ -63,12 +64,13 @@ export default function Launch() {
       }
 
       // Send to backend
+      const reserveLamports = Math.round(parseFloat(form.reserve) * LAMPORTS_PER_SOL)
+
       const response = await createAuction({
-        name: form.name,
-        symbol: form.symbol,
-        reserve_price_cents: Math.round(parseFloat(form.reserve) * 100),
-        commit_duration_seconds: parseInt(form.duration),
-        reveal_duration_seconds: parseInt(form.duration)
+        title: form.name,
+        reserve_price: reserveLamports,
+        commit_duration_seconds: parseInt(form.duration, 10),
+        reveal_duration_seconds: parseInt(form.duration, 10)
       })
 
       console.log('✅ Auction created:', response)
@@ -86,20 +88,7 @@ export default function Launch() {
     }
   }
 
-  // Authentication check
-  if (!authenticated) {
-    return (
-      <PageTransition className="w-full max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center py-24">
-          <h1 className="text-display mb-4">Create Token Auction</h1>
-          <p className="text-text-secondary mb-8 text-lg">You must be logged in to create an auction.</p>
-          <Link to="/login" className="px-6 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-medium text-white inline-block">
-            Sign In
-          </Link>
-        </div>
-      </PageTransition>
-    )
-  }
+  // Authentication is handled by ProtectedRoute
 
   return (
     <PageTransition className="w-full max-w-7xl mx-auto px-6 py-12">

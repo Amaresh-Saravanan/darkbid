@@ -8,44 +8,118 @@ import { CountdownTimer } from '@/components/auction/CountdownTimer'
 import { BidForm } from '@/components/auction/BidForm'
 import { RevealPanel } from '@/components/auction/RevealPanel'
 import { WinnerPanel } from '@/components/auction/WinnerPanel'
-
-const DUMMY_AUCTION = {
-  id: 'token-xyz-123',
-  title: 'ProjectXYZ Token Launch',
-  reservePrice: 0.5,
-  state: AUCTION_STATES.BIDDING,
-  bidsCount: 12,
-  revealedCount: 8,
-  startTime: Date.now() - 3600000, 
-  endTime: Date.now() + (42 * 60 * 1000) + (15 * 1000), // 42 mins 15s 
-  revealEndTime: Date.now() + 7200000
-}
+import { getAuction, getAuctionResult } from '@/lib/api'
+import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
 
 export function Auction() {
   const { id } = useParams()
-  const [state, setState] = useState(DUMMY_AUCTION.state)
+  const { walletAddress } = useWalletAuth()
+  const [auction, setAuction] = useState(null)
+  const [result, setResult] = useState(null)
+  const [state, setState] = useState(AUCTION_STATES.BIDDING)
   const [timeLeft, setTimeLeft] = useState(0)
+  const [totalDuration, setTotalDuration] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    // Basic countdown simulation
-    const target = state === AUCTION_STATES.BIDDING ? DUMMY_AUCTION.endTime : DUMMY_AUCTION.revealEndTime
-    const updateTime = () => setTimeLeft(Math.max(0, Math.floor((target - Date.now())/1000)))
+    let active = true
+
+    const loadAuction = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const [auctionData, resultData] = await Promise.all([
+          getAuction(id),
+          getAuctionResult(id).catch(() => null)
+        ])
+
+        if (!active) return
+        setAuction(auctionData)
+        setResult(resultData)
+      } catch (err) {
+        if (!active) return
+        setError(err.message)
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    if (id) loadAuction()
+    return () => { active = false }
+  }, [id])
+
+  useEffect(() => {
+    if (!auction) return
+
+    const commitEndMs = auction.commit_end_at ? Date.parse(auction.commit_end_at) : null
+    const revealEndMs = auction.reveal_end_at ? Date.parse(auction.reveal_end_at) : null
+    const createdAtMs = auction.created_at ? Date.parse(auction.created_at) : null
+
+    if (!commitEndMs || !revealEndMs) return
+
+    const updateTime = () => {
+      const now = Date.now()
+      const phase = now < commitEndMs
+        ? AUCTION_STATES.BIDDING
+        : now < revealEndMs
+          ? AUCTION_STATES.REVEAL
+          : AUCTION_STATES.CLOSED
+
+      setState(phase)
+
+      const target = phase === AUCTION_STATES.BIDDING ? commitEndMs : revealEndMs
+      const secondsLeft = Math.max(0, Math.floor((target - now) / 1000))
+      setTimeLeft(secondsLeft)
+
+      const total = phase === AUCTION_STATES.BIDDING && createdAtMs
+        ? Math.max(1, Math.floor((commitEndMs - createdAtMs) / 1000))
+        : Math.max(1, Math.floor((revealEndMs - commitEndMs) / 1000))
+
+      setTotalDuration(total)
+    }
+
     updateTime()
     const timer = setInterval(updateTime, 1000)
     return () => clearInterval(timer)
-  }, [state])
+  }, [auction])
 
-  // Dev state toggles
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === '1') setState(AUCTION_STATES.BIDDING)
-      if (e.key === '2') setState(AUCTION_STATES.REVEAL)
-      if (e.key === '3') setState(AUCTION_STATES.CALCULATING)
-      if (e.key === '4') setState(AUCTION_STATES.CLOSED)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  const reserveSol = auction?.reserve_price != null
+    ? auction.reserve_price / 1_000_000_000
+    : null
+  const reserveDisplay = reserveSol !== null
+    ? `${reserveSol.toFixed(2)} SOL`
+    : 'N/A'
+
+  const bidHash = id ? localStorage.getItem(`bid_hash_${id}`) : ''
+  const bidAmount = id ? localStorage.getItem(`bid_amount_${id}`) : ''
+  const bidSecret = id ? localStorage.getItem(`bid_secret_${id}`) : ''
+  const bidId = id ? localStorage.getItem(`bid_id_${id}`) : null
+
+  if (loading) {
+    return (
+      <div className="pt-32 pb-24 px-6 text-center text-[var(--text-secondary)]">
+        Loading auction...
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="pt-32 pb-24 px-6 text-center text-red-400">
+        {error}
+      </div>
+    )
+  }
+
+  if (!auction) {
+    return (
+      <div className="pt-32 pb-24 px-6 text-center text-[var(--text-secondary)]">
+        Auction not found.
+      </div>
+    )
+  }
 
   return (
     <div className="pt-32 pb-24 px-4 sm:px-6 md:px-8 max-w-[1200px] mx-auto relative z-10 w-full">
@@ -71,10 +145,10 @@ export function Auction() {
                 </span>
               </div>
               <h1 className="font-display text-[56px] text-white mb-3 tracking-tight drop-shadow-2xl">
-                {DUMMY_AUCTION.title}
+                {auction.title}
               </h1>
               <p className="font-mono text-lg text-[var(--text-muted)] uppercase tracking-wider">
-                Reserve Price: <span className="text-white font-medium text-glow">{DUMMY_AUCTION.reservePrice} SOL</span>
+                Reserve Price: <span className="text-white font-medium text-glow">{reserveDisplay}</span>
               </p>
             </div>
           )}
@@ -97,7 +171,7 @@ export function Auction() {
                 </span>
               </div>
               <h1 className="font-display text-[48px] text-white mb-3 tracking-tight drop-shadow-2xl">
-                {DUMMY_AUCTION.title}
+                {auction.title}
               </h1>
             </div>
           )}
@@ -110,23 +184,29 @@ export function Auction() {
                 <div className="md:col-span-5 h-full">
                   <CountdownTimer 
                     timeLeft={timeLeft} 
-                    totalDuration={3600} 
-                    bids={DUMMY_AUCTION.bidsCount} 
+                    totalDuration={totalDuration} 
+                    bids={result?.total_bids ?? 0} 
                   />
                 </div>
                 <div className="md:col-span-7 h-full">
-                  <BidForm reserve={DUMMY_AUCTION.reservePrice} auctionId={id} />
+                  <BidForm reserve={reserveSol ?? 0} auctionId={id} />
                 </div>
               </>
             )}
 
             {state === AUCTION_STATES.REVEAL && (
-              <RevealPanel />
+              <RevealPanel
+                auctionId={id}
+                bidId={bidId}
+                sealedHash={bidHash}
+                initialAmount={bidAmount}
+                initialSecret={bidSecret}
+              />
             )}
 
             {state === AUCTION_STATES.CLOSED && (
               <div className="md:col-span-12 w-full max-w-4xl mx-auto">
-                <WinnerPanel />
+                <WinnerPanel result={result} viewerWallet={walletAddress} />
               </div>
             )}
             

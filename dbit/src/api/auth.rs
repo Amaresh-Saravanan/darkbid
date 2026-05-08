@@ -162,8 +162,11 @@ pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
 ) -> AppResult<Json<AuthResponse>> {
-    // ── Look up the user ───────────────────────────────────────────────────
-    let user = sqlx::query!(
+    let has_wallet_auth = req.nonce.is_some() && req.signature.is_some();
+    let has_password    = req.password.is_some();
+
+    // Look up user optionally
+    let user_opt = sqlx::query!(
         r#"
         SELECT id, wallet_address, password_hash
         FROM   users
@@ -172,21 +175,12 @@ pub async fn login(
         req.wallet_address,
     )
     .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::Validation("unknown wallet address".into()))?;
-
-    // ── Decide which auth path to take ─────────────────────────────────────
-    let has_wallet_auth = req.nonce.is_some() && req.signature.is_some();
-    let has_password    = req.password.is_some();
+    .await?;
 
     if has_wallet_auth {
-        // ────────────────────────────────────────────────────────────────────
-        // PATH A: Wallet-signature login
-        // ────────────────────────────────────────────────────────────────────
         let nonce     = req.nonce.as_ref().unwrap();
         let sig_b58   = req.signature.as_ref().unwrap();
 
-        // 1. Validate the nonce against the DB (must exist + not expired)
         let nonce_row = sqlx::query!(
             r#"
             SELECT id, nonce, expires_at
@@ -203,20 +197,17 @@ pub async fn login(
             return Err(AppError::Validation("nonce mismatch".into()));
         }
         if nonce_row.expires_at < Utc::now() {
-            // Clean up the expired nonce
             sqlx::query!("DELETE FROM auth_nonces WHERE id = $1", nonce_row.id)
                 .execute(&state.db)
                 .await?;
             return Err(AppError::Validation("nonce expired — request a new one".into()));
         }
 
-        // 2. Decode the wallet's public key (Ed25519)
         let pubkey_bytes = bs58::decode(&req.wallet_address)
             .into_vec()
             .map_err(|_| AppError::Validation("invalid Base58 wallet address".into()))?;
 
         use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-
         let verifying_key = VerifyingKey::from_bytes(
             pubkey_bytes
                 .as_slice()
@@ -225,7 +216,6 @@ pub async fn login(
         )
         .map_err(|_| AppError::Validation("invalid Ed25519 public key".into()))?;
 
-        // 3. Decode the signature
         let sig_bytes = bs58::decode(sig_b58)
             .into_vec()
             .map_err(|_| AppError::Validation("invalid Base58 signature".into()))?;
@@ -237,29 +227,41 @@ pub async fn login(
                 .map_err(|_| AppError::Validation("signature must be 64 bytes".into()))?,
         );
 
-        // 4. Verify: the message that was signed is the raw nonce string
+        let expected_message = format!("Sign this message to authenticate with DarkBid\nNonce: {}", nonce);
         verifying_key
-            .verify(nonce.as_bytes(), &signature)
+            .verify(expected_message.as_bytes(), &signature)
             .map_err(|_| AppError::Validation("signature verification failed".into()))?;
 
-        // 5. Consume the nonce (single-use)
         sqlx::query!("DELETE FROM auth_nonces WHERE id = $1", nonce_row.id)
             .execute(&state.db)
             .await?;
 
+        // Auto-register user if they don't exist
+        let user_id = if let Some(u) = user_opt {
+            u.id
+        } else {
+            let new_id = Uuid::new_v4();
+            sqlx::query!(
+                "INSERT INTO users (id, wallet_address) VALUES ($1, $2)",
+                new_id,
+                req.wallet_address,
+            )
+            .execute(&state.db)
+            .await?;
+            new_id
+        };
+
+        let token = issue_jwt(&user_id, &req.wallet_address, &state.config.jwt_secret)?;
+        return Ok(Json(AuthResponse { token, user_id }));
+
     } else if has_password {
-        // ────────────────────────────────────────────────────────────────────
-        // PATH B: Password login
-        // ────────────────────────────────────────────────────────────────────
+        let user = user_opt.ok_or_else(|| AppError::Validation("unknown wallet address".into()))?;
         let password = req.password.as_ref().unwrap();
         let stored_hash = user.password_hash.as_deref().ok_or_else(|| {
-            AppError::Validation(
-                "this account has no password — use wallet-signature login".into(),
-            )
+            AppError::Validation("this account has no password — use wallet-signature login".into())
         })?;
 
         use argon2::password_hash::{PasswordHash, PasswordVerifier};
-
         let parsed = PasswordHash::new(stored_hash)
             .map_err(|e| AppError::Validation(format!("stored hash corrupt: {e}")))?;
 
@@ -267,20 +269,12 @@ pub async fn login(
             .verify_password(password.as_bytes(), &parsed)
             .map_err(|_| AppError::Validation("incorrect password".into()))?;
 
+        let token = issue_jwt(&user.id, &user.wallet_address, &state.config.jwt_secret)?;
+        return Ok(Json(AuthResponse { token, user_id: user.id }));
+
     } else {
-        return Err(AppError::Validation(
-            "provide either (nonce + signature) for wallet login or password for password login"
-                .into(),
-        ));
+        return Err(AppError::Validation("provide either (nonce + signature) or password".into()));
     }
-
-    // ── Issue JWT ──────────────────────────────────────────────────────────
-    let token = issue_jwt(&user.id, &user.wallet_address, &state.config.jwt_secret)?;
-
-    Ok(Json(AuthResponse {
-        token,
-        user_id: user.id,
-    }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
