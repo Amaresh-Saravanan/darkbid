@@ -115,7 +115,7 @@ export function Auction() {
                   />
                 </div>
                 <div className="md:col-span-7 h-full">
-                  <BidForm reserve={DUMMY_AUCTION.reservePrice} />
+                  <BidForm reserve={DUMMY_AUCTION.reservePrice} auctionId={id} />
                 </div>
               </>
             )}

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { WalletButton } from '@/components/shared/WalletButton'
 import { useWallet } from '@solana/wallet-adapter-react'
+import { useAuth } from '@/hooks/useAuth.jsx'
+import { commitBid } from '@/lib/api'
 import { Lock, RefreshCw, Copy, AlertTriangle } from 'lucide-react'
 
 // Auto-generate 64-char key
@@ -16,13 +18,16 @@ async function sha256hex(msg) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-export function BidForm({ reserve = 0, onBid }) {
+export function BidForm({ reserve = 0, auctionId, onBid }) {
   const { connected } = useWallet()
+  const { authenticated } = useAuth()
   const [amount, setAmount] = useState('1.25')
   const [secret, setSecret] = useState('')
   const [hash,   setHash]   = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   // Initialization
   useEffect(() => { setSecret(generateKey()) }, [])
@@ -48,13 +53,45 @@ export function BidForm({ reserve = 0, onBid }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!connected || !amount || Number(amount) < reserve || isSubmitting) return
+    if (!connected || !authenticated || !amount || Number(amount) < reserve || isSubmitting) return
 
-    setIsSubmitting(true)
-    // Simulate submission flow
-    await new Promise(r => setTimeout(r, 2000))
-    onBid?.({ amount, secret, hash })
-    setIsSubmitting(false)
+    try {
+      setIsSubmitting(true)
+      setSubmitError(null)
+
+      // Validate bid amount
+      if (Number(amount) < reserve) {
+        setSubmitError(`Bid must be at least ${reserve}`)
+        return
+      }
+
+      // Save secret and amount to localStorage for later reveal
+      localStorage.setItem(`bid_secret_${auctionId}`, secret)
+      localStorage.setItem(`bid_amount_${auctionId}`, amount)
+
+      // Call backend API to commit bid
+      const response = await commitBid(
+        auctionId,
+        `0x${hash}`,
+        'temp-tx-hash'  // TODO: Get real tx hash from Solana transaction
+      )
+
+      console.log('✅ Bid committed:', response)
+      setSubmitSuccess(true)
+      setAmount('')
+      setSecret(generateKey())
+
+      // Call parent callback
+      onBid?.({ amount, secret, hash })
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSubmitSuccess(false), 3000)
+    } catch (err) {
+      console.error('❌ Bid error:', err)
+      setSubmitError(err.message)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!connected) {
@@ -144,10 +181,24 @@ export function BidForm({ reserve = 0, onBid }) {
           </div>
         </div>
 
+        {/* Error Display */}
+        {submitError && (
+          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-mono">
+            ❌ {submitError}
+          </div>
+        )}
+
+        {/* Success Display */}
+        {submitSuccess && (
+          <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-mono">
+            ✅ Bid sealed! Secret saved locally. You can reveal during reveal phase.
+          </div>
+        )}
+
         {/* CTA */}
         <button 
           onClick={handleSubmit}
-          disabled={isSubmitting || Number(amount) < reserve}
+          disabled={isSubmitting || Number(amount) < reserve || !authenticated}
           className="w-full btn-primary-glow text-white font-display font-medium text-lg py-5 rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Lock className="w-[24px] h-[24px] group-hover:scale-110 transition-transform" />

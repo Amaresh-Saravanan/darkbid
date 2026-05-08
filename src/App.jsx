@@ -11,6 +11,9 @@ import { clusterApiUrl } from '@solana/web3.js'
 import '@solana/wallet-adapter-react-ui/styles.css'
 import './index.css'
 
+// Auth
+import { AuthProvider } from './hooks/useAuth.jsx'
+
 // Layout
 import { Navbar } from './components/layout/Navbar'
 import { Footer } from './components/layout/Footer'
@@ -18,6 +21,8 @@ import { ROUTES } from './lib/constants'
 
 // Pages
 import Landing   from './pages/Landing'
+import Login     from './pages/Login'
+import Register  from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Launch    from './pages/Launch'
 import Auction   from './pages/Auction'
@@ -28,6 +33,8 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path={ROUTES.HOME}      element={<Landing />} />
+        <Route path="/login"           element={<Login />} />
+        <Route path="/register"        element={<Register />} />
         <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
         <Route path={ROUTES.LAUNCH}    element={<Launch />} />
         <Route path={ROUTES.AUCTION}   element={<Auction />} />
@@ -74,17 +81,19 @@ export default function App() {
   const localStorageKey = 'WalletAdapterNetwork'
 
   return (
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider 
-        wallets={wallets} 
-        autoConnect={false}
-        onError={onError}
-        localStorageKey={localStorageKey}
-      >
-        <WalletModalProvider>
-          <AppContent />
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <AuthProvider>
+      <ConnectionProvider endpoint={endpoint}>
+        <WalletProvider 
+          wallets={wallets} 
+          autoConnect={false}
+          onError={onError}
+          localStorageKey={localStorageKey}
+        >
+          <WalletModalProvider>
+            <AppContent />
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+    </AuthProvider>
   )
 }

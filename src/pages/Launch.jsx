@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PageTransition } from '@/components/shared/PageTransition'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AuctionCard } from '@/components/auction/AuctionCard'
 import { Info, Zap } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth.jsx'
+import { createAuction } from '@/lib/api'
 
 function humanDuration(seconds) {
   const s = parseInt(seconds) || 0
@@ -31,6 +34,9 @@ const FieldLabel = ({ children }) => (
 )
 
 export default function Launch() {
+  const { authenticated } = useAuth()
+  const navigate = useNavigate()
+
   const [form, setForm] = useState({
     name: 'MyToken',
     symbol: '$MTK',
@@ -38,8 +44,62 @@ export default function Launch() {
     reserve: '50',
     duration: '3600',
   })
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleCreateAuction = async () => {
+    try {
+      setSubmitting(true)
+      setSubmitError(null)
+
+      // Validate form
+      if (!form.name || !form.symbol || !form.reserve || !form.duration) {
+        setSubmitError('Please fill in all fields')
+        setSubmitting(false)
+        return
+      }
+
+      // Send to backend
+      const response = await createAuction({
+        name: form.name,
+        symbol: form.symbol,
+        reserve_price_cents: Math.round(parseFloat(form.reserve) * 100),
+        commit_duration_seconds: parseInt(form.duration),
+        reveal_duration_seconds: parseInt(form.duration)
+      })
+
+      console.log('✅ Auction created:', response)
+      setSubmitSuccess(true)
+
+      // Redirect to dashboard after 1 second
+      setTimeout(() => {
+        navigate('/dashboard')
+      }, 1000)
+    } catch (err) {
+      setSubmitError(err.message)
+      console.error('❌ Create auction error:', err)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Authentication check
+  if (!authenticated) {
+    return (
+      <PageTransition className="w-full max-w-7xl mx-auto px-6 py-12">
+        <div className="text-center py-24">
+          <h1 className="text-display mb-4">Create Token Auction</h1>
+          <p className="text-text-secondary mb-8 text-lg">You must be logged in to create an auction.</p>
+          <Link to="/login" className="px-6 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-medium text-white inline-block">
+            Sign In
+          </Link>
+        </div>
+      </PageTransition>
+    )
+  }
 
   return (
     <PageTransition className="w-full max-w-7xl mx-auto px-6 py-12">
@@ -172,13 +232,29 @@ export default function Launch() {
             </div>
 
             {/* Deploy */}
+            {submitError && (
+              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                {submitError}
+              </div>
+            )}
+
+            {submitSuccess && (
+              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-sm">
+                ✅ Auction created! Redirecting to dashboard...
+              </div>
+            )}
+
             <motion.div whileTap={{ scale: 0.98 }}>
-              <Button className="w-full py-6 text-lg font-display font-bold text-white rounded-xl border-none transition-all
+              <Button 
+                onClick={handleCreateAuction}
+                disabled={submitting || !authenticated}
+                className="w-full py-6 text-lg font-display font-bold text-white rounded-xl border-none transition-all
                 bg-gradient-to-r from-[var(--violet-500)] to-[#9C4FFF]
                 hover:shadow-[0_0_32px_rgba(124,58,237,0.5)] hover:-translate-y-0.5
+                disabled:opacity-50 disabled:cursor-not-allowed
                 flex items-center justify-center gap-2">
                 <Zap className="w-5 h-5" />
-                Deploy Auction on Solana →
+                {submitting ? 'Creating Auction...' : 'Deploy Auction on Solana →'}
               </Button>
             </motion.div>
           </section>

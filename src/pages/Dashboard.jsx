@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageTransition } from '@/components/shared/PageTransition'
 import { AuctionCard } from '@/components/auction/AuctionCard'
-import { Filter } from 'lucide-react'
+import { Filter, Loader2 } from 'lucide-react'
+import { listAuctions } from '@/lib/api'
 
 const FILTERS = ['All', 'Live', 'Revealing', 'Ended']
 
@@ -12,17 +13,6 @@ const FILTER_COLORS = {
   Ended:     'text-[#8B8FA8]',
   All:       'text-white',
 }
-
-const auctions = [
-  { id: '1', name: 'PhantomToken', symbol: '$PHNTM', reserve: '100.00', time: '00:45', bids: '21', status: 'Live' },
-  { id: '2', name: 'ZeroCoin',     symbol: '$ZERO',  reserve: '50.00',  time: '02:15', bids: '14', status: 'Live' },
-  { id: '3', name: 'Eclipse',      symbol: '$ECL',   reserve: '500.00', time: '14:00', bids: '5',  status: 'Live' },
-  { id: '4', name: 'Nebula',       symbol: '$NBLA',  reserve: '25.00',  time: '08:32', bids: '9',  status: 'Revealing' },
-  { id: '5', name: 'Axiom',        symbol: '$AX',    reserve: '150.00', time: '03:48', bids: '17', status: 'Revealing' },
-  { id: '6', name: 'Stardust',     symbol: '$DUST',  reserve: '10.00',  time: 'Ended', bids: '145',status: 'Ended' },
-  { id: '7', name: 'SolFlame',     symbol: '$FLAME', reserve: '75.00',  time: 'Ended', bids: '88', status: 'Ended' },
-  { id: '8', name: 'VoidMark',     symbol: '$VOID',  reserve: '200.00', time: 'Ended', bids: '32', status: 'Ended' },
-]
 
 const cardVariants = {
   hidden:  { opacity: 0, y: 24, scale: 0.96 },
@@ -34,14 +24,37 @@ const cardVariants = {
 
 export default function Dashboard() {
   const [filter, setFilter] = useState('All')
+  const [auctions, setAuctions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Fetch auctions on mount
+  useEffect(() => {
+    const fetchAuctions = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await listAuctions()
+        console.log('[Dashboard] Fetched auctions:', data)
+        setAuctions(data || [])
+      } catch (err) {
+        console.error('[Dashboard] Error fetching auctions:', err)
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchAuctions()
+  }, [])
 
   const filtered = filter === 'All' ? auctions : auctions.filter(a => a.status === filter)
 
   const counts = {
     All:      auctions.length,
-    Live:      auctions.filter(a => a.status === 'Live').length,
-    Revealing: auctions.filter(a => a.status === 'Revealing').length,
-    Ended:     auctions.filter(a => a.status === 'Ended').length,
+    Live:      auctions.filter(a => a.status === 'Live' || a.status === 'BIDDING').length,
+    Revealing: auctions.filter(a => a.status === 'Revealing' || a.status === 'REVEAL').length,
+    Ended:     auctions.filter(a => a.status === 'Ended' || a.status === 'CLOSED').length,
   }
 
   return (
@@ -87,32 +100,56 @@ export default function Dashboard() {
 
       {/* Grid */}
       <AnimatePresence mode="wait">
-        <motion.div
-          key={filter}
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          {filtered.length > 0 ? filtered.map((a, i) => (
-            <motion.div
-              key={a.id}
-              custom={i}
-              variants={cardVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              <AuctionCard {...a} isLive={a.status === 'Live'} />
-            </motion.div>
-          )) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="col-span-full py-24 text-center border border-dashed border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-surface)]/30"
-            >
-              <div className="text-4xl mb-4">🔍</div>
-              <h3 className="text-xl font-bold text-white mb-2">No {filter.toLowerCase()} auctions</h3>
-              <p className="text-[var(--text-muted)]">Check back soon or launch your own token.</p>
-            </motion.div>
-          )}
-        </motion.div>
+        {loading ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            key="loading"
+            className="col-span-full py-24 text-center flex flex-col items-center justify-center"
+          >
+            <Loader2 className="w-8 h-8 text-violet-500 animate-spin mb-4" />
+            <p className="text-text-muted">Loading auctions...</p>
+          </motion.div>
+        ) : error ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            key="error"
+            className="col-span-full py-24 text-center"
+          >
+            <div className="p-6 rounded-lg bg-red-500/10 border border-red-500/30 max-w-md mx-auto">
+              <h3 className="text-red-400 font-bold mb-2">Error Loading Auctions</h3>
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key={filter}
+            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {filtered.length > 0 ? filtered.map((a, i) => (
+              <motion.div
+                key={a.id}
+                custom={i}
+                variants={cardVariants}
+                initial="hidden"
+                animate="visible"
+              >
+                <AuctionCard {...a} isLive={a.status === 'Live' || a.status === 'BIDDING'} />
+              </motion.div>
+            )) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="col-span-full py-24 text-center border border-dashed border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-surface)]/30"
+              >
+                <div className="text-4xl mb-4">🔍</div>
+                <h3 className="text-xl font-bold text-white mb-2">No {filter.toLowerCase()} auctions</h3>
+                <p className="text-[var(--text-muted)]">Check back soon or launch your own token.</p>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
       </AnimatePresence>
     </PageTransition>
   )
