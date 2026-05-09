@@ -73,7 +73,7 @@ export async function api(endpoint, options = {}) {
     // Log response
     if (!response.ok) {
       console.error(`[API] ❌ ${response.status}`, data)
-      throw new Error(data?.message || `HTTP ${response.status}`)
+      throw new Error(data?.error || data?.message || (typeof data === 'string' ? data : `HTTP ${response.status}`))
     }
 
     console.log(`[API] ✅ ${response.status}`, data)

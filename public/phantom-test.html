@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Phantom Test</title>
+  <style>
+    body { background: #111; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; gap: 20px; }
+    button { padding: 16px 32px; font-size: 18px; background: #7C3AED; color: white; border: none; border-radius: 12px; cursor: pointer; }
+    button:hover { background: #6D28D9; }
+    #log { background: #222; padding: 20px; border-radius: 8px; width: 500px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>🔮 Phantom Connection Test</h1>
+  <p id="status">Checking for Phantom...</p>
+  <button onclick="testConnect()">Connect Phantom</button>
+  <div id="log"></div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+
+    function log(msg) {
+      const time = new Date().toLocaleTimeString();
+      logEl.textContent += `[${time}] ${msg}\n`;
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(msg);
+    }
+
+    // Check on load
+    window.addEventListener('load', () => {
+      const phantom = window.phantom?.solana;
+      const solana = window.solana;
+
+      log('window.phantom exists: ' + !!window.phantom);
+      log('window.phantom.solana exists: ' + !!phantom);
+      log('window.phantom.solana.isPhantom: ' + !!phantom?.isPhantom);
+      log('window.solana exists: ' + !!solana);
+      log('window.solana.isPhantom: ' + !!solana?.isPhantom);
+
+      if (phantom?.isPhantom) {
+        statusEl.textContent = '✅ Phantom detected! Click the button below.';
+        statusEl.style.color = '#06FFA5';
+      } else if (solana?.isPhantom) {
+        statusEl.textContent = '✅ Phantom detected (legacy). Click the button below.';
+        statusEl.style.color = '#06FFA5';
+      } else {
+        statusEl.textContent = '❌ Phantom NOT detected. Install it from phantom.app';
+        statusEl.style.color = '#FF3B5C';
+      }
+    });
+
+    async function testConnect() {
+      const phantom = window.phantom?.solana || window.solana;
+
+      if (!phantom?.isPhantom) {
+        log('ERROR: Phantom not found!');
+        return;
+      }
+
+      log('Calling phantom.connect()...');
+      statusEl.textContent = '⏳ Waiting for Phantom popup...';
+
+      try {
+        const resp = await phantom.connect();
+        log('SUCCESS! Connected: ' + resp.publicKey.toString());
+        statusEl.textContent = '✅ Connected: ' + resp.publicKey.toString();
+        statusEl.style.color = '#06FFA5';
+      } catch (err) {
+        log('ERROR: ' + err.message + ' (code: ' + err.code + ')');
+        statusEl.textContent = '❌ Error: ' + err.message;
+        statusEl.style.color = '#FF3B5C';
+      }
+    }
+  </script>
+</body>
+</html>
