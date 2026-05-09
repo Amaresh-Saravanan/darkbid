@@ -1,4 +1,4 @@
-import { useState, useContext, createContext, useEffect } from 'react'
+import { useState, useContext, createContext, useEffect, useRef } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import bs58 from 'bs58'
 import { getToken, setToken, clearToken, walletAuth, getAuthNonce } from '../lib/api'
@@ -13,22 +13,49 @@ export function useWalletAuth() {
   return context
 }
 
+/** Timeout wrapper — rejects if the promise doesn't resolve within `ms` */
+function withTimeout(promise, ms, label = 'Operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    )
+  ])
+}
+
 export function WalletAuthProvider({ children }) {
-  const { connected, publicKey, signMessage } = useWallet()
+  const { connected, publicKey, signMessage, disconnect } = useWallet()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const loginInProgress = useRef(false)
 
   // Restore session if token exists and wallet is connected
   useEffect(() => {
     const token = getToken()
     const claims = token ? decodeJwt(token) : null
+
+    // Don't restore expired tokens
+    if (claims?.exp && claims.exp * 1000 < Date.now()) {
+      console.log('[WalletAuth] Token expired, clearing')
+      clearToken()
+      return
+    }
+
+    // Don't restore token from a different wallet
+    if (claims?.wallet && publicKey && claims.wallet !== publicKey.toString()) {
+      console.log('[WalletAuth] Wallet mismatch, clearing stale token')
+      clearToken()
+      return
+    }
+
     if (token && publicKey && connected) {
       setUser({
         walletAddress: claims?.wallet || publicKey.toString(),
         userId: claims?.sub || null,
         authenticated: true
       })
+      setError(null)
       console.log('[WalletAuth] Session restored for:', publicKey.toString().slice(0, 8) + '...')
     }
   }, [publicKey, connected])
@@ -39,6 +66,8 @@ export function WalletAuthProvider({ children }) {
       console.log('[WalletAuth] Wallet disconnected, clearing auth')
       setUser(null)
       clearToken()
+      setError(null)
+      loginInProgress.current = false
     }
   }, [connected, user])
 
@@ -50,29 +79,53 @@ export function WalletAuthProvider({ children }) {
       return
     }
 
+    // Prevent concurrent login attempts
+    if (loginInProgress.current) {
+      console.log('[WalletAuth] Login already in progress, skipping')
+      return
+    }
+
     try {
+      loginInProgress.current = true
       setLoading(true)
       setError(null)
 
-      // Get nonce from backend
-      const nonceResponse = await getAuthNonce(publicKey.toString())
+      // Step 1: Get nonce from backend (with 10s timeout)
+      console.log('[WalletAuth] Step 1: Requesting nonce...')
+      const nonceResponse = await withTimeout(
+        getAuthNonce(publicKey.toString()),
+        10000,
+        'Nonce request'
+      )
       const nonce = nonceResponse.nonce
       console.log('[WalletAuth] Nonce received:', nonce?.slice(0, 20) + '...')
 
-      // Create message to sign
+      // Step 2: Create message to sign (must match backend exactly)
       const message = new TextEncoder().encode(
         `Sign this message to authenticate with DarkBid\nNonce: ${nonce}`
       )
 
-      // Sign with Phantom wallet
-      const signature = await signMessage(message)
+      // Step 3: Sign with Phantom wallet (with 60s timeout for user interaction)
+      console.log('[WalletAuth] Step 2: Requesting signature...')
+      let signature
+      try {
+        signature = await withTimeout(signMessage(message), 60000, 'Signature request')
+      } catch (err) {
+        if (err.message?.includes('User rejected') || err.message?.includes('rejected')) {
+          throw new Error('User rejected the signature request')
+        }
+        throw err
+      }
       console.log('[WalletAuth] Message signed successfully')
 
-      // Convert signature to Base58 for backend verification
+      // Step 4: Convert to Base58 and send to backend (with 10s timeout)
       const signatureB58 = bs58.encode(signature)
-
-      // Send signature to backend for verification
-      const response = await walletAuth(publicKey.toString(), signatureB58, nonce)
+      console.log('[WalletAuth] Step 3: Verifying with backend...')
+      const response = await withTimeout(
+        walletAuth(publicKey.toString(), signatureB58, nonce),
+        10000,
+        'Backend verification'
+      )
 
       if (response.token) {
         setToken(response.token)
@@ -81,7 +134,8 @@ export function WalletAuthProvider({ children }) {
           userId: response.user_id || decodeJwt(response.token)?.sub || null,
           authenticated: true
         })
-        console.log('[WalletAuth] Authenticated successfully')
+        setError(null)
+        console.log('[WalletAuth] ✅ Authenticated successfully')
         return response
       }
 
@@ -92,6 +146,7 @@ export function WalletAuthProvider({ children }) {
       throw err
     } finally {
       setLoading(false)
+      loginInProgress.current = false
     }
   }
 
@@ -99,6 +154,7 @@ export function WalletAuthProvider({ children }) {
     setUser(null)
     clearToken()
     setError(null)
+    loginInProgress.current = false
     console.log('[WalletAuth] Logged out')
   }
 

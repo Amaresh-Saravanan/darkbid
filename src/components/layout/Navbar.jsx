@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LockKeyhole, Menu, X, LogOut } from 'lucide-react'
+import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletButton } from '@/components/shared/WalletButton'
 import { useWalletAuth } from '@/hooks/useWalletAuth.jsx'
 import { ROUTES } from '@/lib/constants'
@@ -17,6 +18,12 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
   const { authenticated, logout } = useWalletAuth()
+  const { disconnect } = useWallet()
+
+  const handleLogout = () => {
+    logout()
+    disconnect()
+  }
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 60)
@@ -72,7 +79,7 @@ export function Navbar() {
             <WalletButton />
             {authenticated && (
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-text-muted hover:text-white hover:bg-bg-surface transition-all"
                 title="Logout"
               >
@@ -115,7 +122,7 @@ export function Navbar() {
             </div>
             {authenticated && (
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 className="py-3 px-4 rounded-xl text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all flex items-center gap-2 mt-2"
               >
                 <LogOut className="w-4 h-4" />
