@@ -64,20 +64,19 @@ export default function App() {
   const wallets  = useMemo(() => [], [])
 
   const onError = useCallback((error) => {
+    // Log structured error for debugging
     console.error('[Wallet] Error:', {
       message: error.message,
       name: error.name,
-      stack: error.stack
     })
     
-    if (error.message.includes('Phantom')) {
-      console.error('[Wallet] Phantom-specific error - extension may not be responding')
-      alert('Phantom wallet error.\n\nTroubleshooting:\n1. Make sure Phantom is enabled\n2. Refresh the page\n3. Check Phantom settings')
-    } else if (error.message.includes('User rejected')) {
-      console.log('[Wallet] User rejected connection')
-    } else {
-      console.error('[Wallet] Unexpected error:', error)
+    // Classify and log — don't alert() the user, WalletButton handles UI
+    if (error.message?.includes('User rejected')) {
+      console.log('[Wallet] User rejected the request — no action needed')
+    } else if (error.message?.includes('Unexpected error') || error.message?.includes('disconnected port')) {
+      console.warn('[Wallet] Phantom extension may have crashed — user should reload it')
     }
+    // All other errors are silently logged; WalletButton displays them inline
   }, [])
 
   const localStorageKey = 'WalletAdapterNetwork'

@@ -1,0 +1,116 @@
+/* === WALLET BUTTON === */
+.wallet-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+  border: none;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.wallet-btn--connect {
+  background: linear-gradient(135deg, var(--violet-500) 0%, var(--violet-600) 100%);
+  color: white;
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.wallet-btn--connect:hover {
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.wallet-btn--connected {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: white;
+  min-width: 140px;
+}
+
+.wallet-btn--connected:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  box-shadow: var(--glow-violet);
+}
+
+.wallet-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--success);
+  box-shadow: 0 0 8px var(--success);
+  animation: pulse-badge 2s infinite;
+}
+
+.wallet-btn--loading {
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  min-width: 160px;
+}
+
+.wallet-btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(124, 58, 237, 0.3);
+  border-top-color: var(--violet-400);
+  border-radius: 50%;
+  animation: spin-slow 1s linear infinite;
+}
+
+.wallet-connected {
+  position: relative;
+}
+
+.wallet-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: rgba(18, 18, 26, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-modal);
+  z-index: 100;
+  animation: digit-flip-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top right;
+}
+
+.wallet-full-address {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: center;
+}
+
+.wallet-disconnect {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 59, 92, 0.1);
+  color: var(--error);
+  font-weight: 600;
+  font-size: 13px;
+  border: 1px solid rgba(255, 59, 92, 0.2);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wallet-disconnect:hover {
+  background: rgba(255, 59, 92, 0.2);
+}
