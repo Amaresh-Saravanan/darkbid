@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE auctions\n        SET    status = 'ENDED'\n        WHERE  status = 'REVEAL'\n          AND  reveal_end_at <= $1\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2ecae38c3a812ac368b693c0123864dcbed8ee4890669ed03b57b33aeb35649f"
+}

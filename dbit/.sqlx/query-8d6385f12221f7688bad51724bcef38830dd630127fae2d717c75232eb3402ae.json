@@ -1,0 +1,79 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id,\n            creator_id,\n            title,\n            reserve_price,\n            status AS \"status: AuctionStatus\",\n            commit_end_at,\n            reveal_end_at,\n            winner_bid_id,\n            created_at\n        FROM auctions\n        ORDER BY created_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "creator_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "reserve_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "status: AuctionStatus",
+        "type_info": {
+          "Custom": {
+            "name": "auction_status",
+            "kind": {
+              "Enum": [
+                "ACTIVE",
+                "REVEAL",
+                "ENDED"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "commit_end_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "reveal_end_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "winner_bid_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "8d6385f12221f7688bad51724bcef38830dd630127fae2d717c75232eb3402ae"
+}
