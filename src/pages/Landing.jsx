@@ -84,9 +84,9 @@ const stats = [
 ]
 
 const demoAuctions = [
-  { id: '1', name: 'PhantomToken', symbol: '$PHNTM', reserve: '100.00', time: '00:45', bids: '21', status: 'Live' },
-  { id: '2', name: 'ZeroCoin',     symbol: '$ZERO',  reserve: '50.00',  time: '02:15', bids: '14', status: 'Live' },
-  { id: '3', name: 'Eclipse',      symbol: '$ECL',   reserve: '500.00', time: '14:00', bids: '5',  status: 'Live' },
+  { id: '11111111-1111-1111-1111-111111111111', name: 'PhantomToken', symbol: '$PHNTM', reserve: '100.00', time: '00:45', bids: '21', status: 'Live' },
+  { id: '22222222-2222-2222-2222-222222222222', name: 'ZeroCoin',     symbol: '$ZERO',  reserve: '50.00',  time: '02:15', bids: '14', status: 'Live' },
+  { id: '33333333-3333-3333-3333-333333333333', name: 'Eclipse',      symbol: '$ECL',   reserve: '500.00', time: '14:00', bids: '5',  status: 'Live' },
 ]
 
 /* ── Landing ───────────────────────────────────────────────── */
