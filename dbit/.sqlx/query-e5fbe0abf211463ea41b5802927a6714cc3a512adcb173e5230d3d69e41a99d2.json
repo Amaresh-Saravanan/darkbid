@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id,\n            auction_id,\n            bidder_id,\n            commit_hash,\n            commit_tx_sig,\n            reveal_amount,\n            reveal_tx_sig,\n            revealed_at,\n            is_valid,\n            commit_at,\n            zk_proof,\n            zk_public_inputs,\n            zk_verified\n        FROM bids\n        WHERE id = $1 AND auction_id = $2\n        FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "auction_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "bidder_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "commit_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "commit_tx_sig",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "reveal_amount",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "reveal_tx_sig",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "revealed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_valid",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "commit_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "zk_proof",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "zk_public_inputs",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "zk_verified",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e5fbe0abf211463ea41b5802927a6714cc3a512adcb173e5230d3d69e41a99d2"
+}

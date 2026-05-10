@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id\n        FROM   bids\n        WHERE  auction_id    = $1\n          AND  is_valid       = true\n          AND  reveal_amount IS NOT NULL\n        ORDER BY reveal_amount DESC,\n                 commit_at    ASC,\n                 bidder_id    ASC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "671c3330cec91a5a15c55ed8312b2c3afccc0f0ab0433802d67c1b55004a8c0e"
+}
