@@ -1,0 +1,57 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+      <style>
+        body { background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; }
+        .window { background: #2d2d2d; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; width: 800px; border: 1px solid #444; }
+        .header { background: #1e1e1e; padding: 10px; display: flex; align-items: center; border-bottom: 1px solid #000; }
+        .dots { display: flex; gap: 8px; margin-left: 10px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; }
+        .dot.red { background: #ff5f56; }
+        .dot.yellow { background: #ffbd2e; }
+        .dot.green { background: #27c93f; }
+        .title { color: #888; font-size: 14px; margin-left: auto; margin-right: auto; }
+        pre { margin: 0; padding: 20px !important; background: transparent !important; font-size: 16px; line-height: 1.5; }
+      </style>
+    </head>
+    <body>
+      <div class="window" id="code-window">
+        <div class="header">
+          <div class="dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <div class="title">commit_bid.rs</div>
+          <div style="width: 50px;"></div>
+        </div>
+        <pre><code class="language-rust">
+    let bid = &mut ctx.accounts.bid;
+    bid.bidder = ctx.accounts.bidder.key();
+    bid.hash = hash;
+    bid.amount = amount;
+    bid.is_revealed = false;
+    bid.bump = ctx.bumps.bid;
+
+    // Transfer SOL via raw system program invoke
+    anchor_lang::solana_program::program::invoke(
+        &anchor_lang::solana_program::system_instruction::transfer(
+            ctx.accounts.bidder.key,
+            ctx.accounts.escrow.key,
+            amount,
+        ),
+        &[
+            ctx.accounts.bidder.to_account_info(),
+            ctx.accounts.escrow.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+        ],
+    )?;
+        </code></pre>
+      </div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-rust.min.js"></script>
+    </body>
+    </html>
+    
