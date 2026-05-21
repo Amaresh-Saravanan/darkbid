@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 const NAV_LINKS = [
   { label: 'Auctions',  to: ROUTES.DASHBOARD },
   { label: 'Create',    to: ROUTES.LAUNCH },
-  { label: 'Docs',      to: '#' },
+  { label: 'Docs',      to: ROUTES.DOCS },
 ]
 
 export function Navbar() {

@@ -3,6 +3,7 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   LAUNCH: '/launch',
   AUCTION: '/auction/:id',
+  DOCS: '/docs',
 }
 
 export const AUCTION_STATES = {

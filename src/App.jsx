@@ -29,6 +29,7 @@ import Landing   from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Launch    from './pages/Launch'
 import Auction   from './pages/Auction'
+import Docs      from './pages/Docs'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -36,6 +37,7 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path={ROUTES.HOME}      element={<Landing />} />
+        <Route path={ROUTES.DOCS}      element={<Docs />} />
         <Route path={ROUTES.DASHBOARD} element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path={ROUTES.LAUNCH}    element={<ProtectedRoute><Launch /></ProtectedRoute>} />
         <Route path={ROUTES.AUCTION}   element={<ProtectedRoute><Auction /></ProtectedRoute>} />
