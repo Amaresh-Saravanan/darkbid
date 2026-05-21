@@ -20,8 +20,11 @@ use uuid::Uuid;
 
 /// Generate a random valid Solana-style wallet address (Base58 of 32-byte Ed25519 pubkey).
 fn random_wallet() -> String {
+    use rand::RngCore;
     let mut rng = rand::thread_rng();
-    let signing_key = SigningKey::generate(&mut rng);
+    let mut bytes = [0u8; 32];
+    rng.fill_bytes(&mut bytes);
+    let signing_key = SigningKey::from_bytes(&bytes);
     bs58::encode(signing_key.verifying_key().as_bytes()).into_string()
 }
 
