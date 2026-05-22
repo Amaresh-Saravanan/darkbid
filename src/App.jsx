@@ -9,6 +9,7 @@ window.Buffer = window.Buffer || Buffer
 // Solana wallet imports
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-phantom'
 import { clusterApiUrl } from '@solana/web3.js'
 
 import '@solana/wallet-adapter-react-ui/styles.css'
@@ -62,8 +63,8 @@ function AppContent() {
 
 export default function App() {
   const endpoint = clusterApiUrl('devnet')
-  // Phantom auto-registers via Wallet Standard — no explicit adapters needed
-  const wallets  = useMemo(() => [], [])
+  // Explicitly register Phantom adapter to ensure immediate availability
+  const wallets  = useMemo(() => [new PhantomWalletAdapter()], [])
 
   const onError = useCallback((error) => {
     // Log structured error for debugging

@@ -16,9 +16,10 @@ async function isPhantomHealthy() {
     const phantom = window.phantom?.solana
     if (!phantom?.isPhantom) return false
     // Attempt a lightweight call — if the service worker is dead, this throws
+    // We use a generous 8-second timeout to allow asleep/cold extension service workers to boot up
     await Promise.race([
       phantom.connect({ onlyIfTrusted: true }).catch(() => 'ok'),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
     ])
     return true
   } catch {
