@@ -109,7 +109,7 @@ export function WalletButton() {
     // Pre-flight: check if Phantom extension is responsive
     const healthy = await isPhantomHealthy()
     if (!healthy) {
-      setStatus('Phantom extension is not responding. Go to chrome://extensions and reload Phantom, then refresh this page.')
+      setStatus('Phantom extension is not responding. Go to chrome extention and can you reload Phantom, then refresh this page.')
       setConnectStep('')
       return
     }
@@ -187,8 +187,8 @@ export function WalletButton() {
       <button className="wallet-btn wallet-btn--loading" disabled>
         <span className="wallet-btn-spinner" />
         {connectStep === 'checking' ? 'Checking Phantom...' :
-         connectStep === 'connecting' ? 'Opening Phantom...' :
-         'Connecting...'}
+          connectStep === 'connecting' ? 'Opening Phantom...' :
+            'Connecting...'}
       </button>
     )
   }
